@@ -1,6 +1,7 @@
 import os
 import sys
 
+import numpy as np
 from yirgacheffe.layers import Layer
 from yirgacheffe.rounding import DISTANCE_PER_DEGREE_AT_EQUATOR
 
@@ -33,31 +34,25 @@ try:
 except ValueError:
 	# This typically means that all the layers on the list are not
 	# the same projection or pixel scale.
-	print("Provided tiffs do not have same scale/projection:")
-	mapmap = {}
-	for layer in layer_list:
-		try:
-			mapmap[layer.pixel_scale].append(layer)
-		except KeyError:
-			mapmap[layer.pixel_scale] = [layer]
-	for key in mapmap:
-		# pixel scale is the number of degrees per pixel
-
-		print(f"{key.xstep * DISTANCE_PER_DEGREE_AT_EQUATOR}, {key.ystep * DISTANCE_PER_DEGREE_AT_EQUATOR}:")
-		for layer in mapmap[key]:
-			print(f"\t{layer.name}")
+	print("Provided tiffs do not have same scale/projection")
 	sys.exit(-1)
+
+for layer in layer_list:
+	layer.set_window_for_union(union_area)
 
 # make the output layer
 result = Layer.empty_raster_layer(
 	area=union_area,
 	scale=layer_list[0].pixel_scale,
-	data_type=layer_list[0].data_type,
+	data_type=layer_list[0].datatype,
 	filename=target,
 	projection=layer_list[0].projection
 )
 
+def nansum(a, b):
+	return np.nansum(np.dstack((a, b)),2)
+
 calc = layer_list[0]
 for layer in layer_list[1:]:
-	calc = calc + layer
+	calc = calc.numpy_apply(nansum, layer)
 calc.save(result)
